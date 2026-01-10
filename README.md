@@ -49,11 +49,18 @@ dotnet run --project ./reversi_cs.csproj
   - 着手処理（`TryPlaceAt`）
   - パス処理（合法手なしの場合）
   - 終局判定（両者合法手なし）と石数カウント（`CountStones`）
+  - ビットボード（`BitBoard`）を併用し、合法手一覧生成（`GetValidMoves`）と石数カウントを高速化
 - `Board`
   - 8×8 の盤面状態を保持します。
   - 初期配置（中央 4 石）を設定します。
 - `Stone`
   - マスの状態（`EMPTY` / `BLACK` / `WHITE`）を表す列挙型です。
+
+### ビットボード（高速化の下地）
+- `BitBoard`
+  - 8×8 盤面を `ulong` 2 本（黒/白）で表現します（index = `y*8 + x`）。
+  - 合法手生成（ビットマスク）や反転ビット計算などの高速処理を実装しています。
+  - 現状は UI 互換のため `Board` と同期して使い、将来的な最適化のための基盤として導入しています。
 
 ### AI
 - `RandomPlayer`
@@ -74,6 +81,7 @@ dotnet run --project ./reversi_cs.csproj
 - `RandomPlayer.cs`: ランダム手の簡易 AI
 - `GameConfig.cs`: ゲーム設定
 - `PlayerType.cs`: プレイヤー種別
+- `BitBoard.cs`: ビットボード表現と合法手生成など（高速化の下地）
 
 ## 開発補助ツール
 このプロジェクトの作成・修正には `GitHub Copilot` を使用しています。
