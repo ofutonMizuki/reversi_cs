@@ -20,11 +20,19 @@ namespace reversi_cs
         // 現在表示しているボード参照
         private Board board;
 
+        private readonly GameConfig config;
+
+        private readonly RandomPlayer blackRandom = new RandomPlayer(Stone.BLACK);
+        private readonly RandomPlayer whiteRandom = new RandomPlayer(Stone.WHITE);
+        private readonly System.Windows.Forms.Timer aiTimer = new System.Windows.Forms.Timer();
+
         /**
          * コンストラクタ。フォームの初期化とイベント登録を行う。
          */
-        public GameForm()
+        public GameForm(GameConfig? config = null)
         {
+            this.config = config ?? new GameConfig();
+
             this.Text = "Game";
             this.ClientSize = new Size(640, 640);
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
@@ -42,7 +50,25 @@ namespace reversi_cs
             game = new GameLogic(this.DrawBoard, this.Notify);
             game.InitializeGame();
 
+            aiTimer.Interval = 200;
+            aiTimer.Tick += (_, __) =>
+            {
+                aiTimer.Stop();
+                TryAIMoveIfNeeded();
+            };
+
+            // If black is AI, start immediately.
+            if (!IsHumanTurn())
+                aiTimer.Start();
+
             this.Activate();
+        }
+
+        private bool IsHumanTurn()
+        {
+            var current = game.GetCurrentPlayer();
+            var currentType = current == Stone.BLACK ? config.Black : config.White;
+            return currentType == PlayerType.Human;
         }
 
         /**
@@ -64,12 +90,54 @@ namespace reversi_cs
         private void Field_MouseClick(object? sender, MouseEventArgs e)
         {
             if (board == null) return;
+            if (game.IsGameOver()) return;
+            if (!IsHumanTurn()) return;
+
             int cellSize = this.ClientSize.Width / 8;
             int x = Math.Clamp(e.X / cellSize, 0, 7);
             int y = Math.Clamp(e.Y / cellSize, 0, 7);
 
             // GameLogic に石を置く要求を送る（結果は内部で描画更新される）
             _ = game.TryPlaceAt(x, y);
+
+            // let AI respond
+            if (!IsHumanTurn() && !aiTimer.Enabled)
+                aiTimer.Start();
+        }
+
+        private void TryAIMoveIfNeeded()
+        {
+            if (game.IsGameOver())
+            {
+                aiTimer.Stop();
+                return;
+            }
+
+            if (IsHumanTurn()) return;
+
+            var current = game.GetCurrentPlayer();
+            RandomPlayer ai = current == Stone.BLACK ? blackRandom : whiteRandom;
+
+            var move = ai.ChooseMove(game);
+            if (move is null)
+            {
+                // Pass is handled inside TryPlaceAt when a non-legal placement is attempted.
+                // Trigger it by attempting an invalid move.
+                _ = game.TryPlaceAt(-1, -1);
+                return;
+            }
+
+            _ = game.TryPlaceAt(move.Value.x, move.Value.y);
+
+            // Continue while AI still has the turn (e.g., opponent pass).
+            if (game.IsGameOver())
+            {
+                aiTimer.Stop();
+                return;
+            }
+
+            if (!IsHumanTurn() && !aiTimer.Enabled)
+                aiTimer.Start();
         }
 
         /**

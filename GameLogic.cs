@@ -8,7 +8,7 @@ namespace reversi_cs
      * 石の状態を表す列挙型
      * EMPTY: 空, BLACK: 黒, WHITE: 白
      */
-    enum Stone
+    public enum Stone
     {
         EMPTY,
         BLACK,
@@ -18,7 +18,7 @@ namespace reversi_cs
     /**
      * ボードを表すクラス。8x8 の石の配置を保持する。
      */
-    class Board
+    public class Board
     {
         // 内部的な2次元配列（ジャグ配列）でボードを保持する
         private Stone[][] field;
@@ -101,7 +101,7 @@ namespace reversi_cs
      * ゲームのロジックを管理するクラス。
      * 描画コールバックに Board を渡すことができる。
      */
-    class GameLogic
+    public class GameLogic
     {
         // ゲームのボード
         private Board Board;
@@ -111,6 +111,29 @@ namespace reversi_cs
         readonly Action<string> Notify;
         // 現在のプレイヤー
         private Stone CurrentPlayer = Stone.BLACK;
+        private bool isGameOver;
+
+        public Stone GetCurrentPlayer() => this.CurrentPlayer;
+
+        public bool IsGameOver() => isGameOver;
+
+        public List<(int x, int y)> GetValidMoves(Stone player)
+        {
+            var moves = new List<(int x, int y)>();
+            for (int x = 0; x < 8; x++)
+                for (int y = 0; y < 8; y++)
+                    if (IsValidMove(x, y, player))
+                        moves.Add((x, y));
+            return moves;
+        }
+
+        public (int x, int y)? GetRandomValidMove(Stone player, Random rng)
+        {
+            if (rng is null) throw new ArgumentNullException(nameof(rng));
+            var moves = GetValidMoves(player);
+            if (moves.Count == 0) return null;
+            return moves[rng.Next(moves.Count)];
+        }
 
         // 8方向を表すオフセット配列
         private static readonly (int dx, int dy)[] Directions = new (int, int)[]
@@ -139,7 +162,18 @@ namespace reversi_cs
         public void InitializeGame() {
             this.Board = new Board();
             this.CurrentPlayer = Stone.BLACK; // 黒から開始
+            this.isGameOver = false;
             this.DrawBoard(this.Board); // 初期状態を描画
+        }
+
+        void NotifyGameOverIfNeeded()
+        {
+            if (isGameOver) return;
+            isGameOver = true;
+
+            var (b, w) = CountStones();
+            var winner = b > w ? "Black" : (w > b ? "White" : "Draw");
+            this.Notify?.Invoke($"Game Over\nBlack: {b} White: {w}\nWinner: {winner}");
         }
 
         /**
@@ -214,6 +248,8 @@ namespace reversi_cs
          */
         public bool TryPlaceAt(int x, int y)
         {
+            if (isGameOver) return false;
+
             if (!IsValidMove(x, y, this.CurrentPlayer))
             {
                 // 現在のプレイヤーが合法手を持っていない場合はパス
@@ -227,9 +263,7 @@ namespace reversi_cs
                     // 相手も合法手がない場合はゲーム終了
                     if (!HasAnyValidMove(this.CurrentPlayer))
                     {
-                        var (b, w) = CountStones();
-                        var winner = b > w ? "Black" : (w > b ? "White" : "Draw");
-                        this.Notify?.Invoke($"Game Over\nBlack: {b} White: {w}\nWinner: {winner}");
+                        NotifyGameOverIfNeeded();
                     }
                 }
                 return false;
@@ -266,9 +300,7 @@ namespace reversi_cs
             // 両者とも合法手が無ければゲーム終了
             if (!HasAnyValidMove(Stone.BLACK) && !HasAnyValidMove(Stone.WHITE))
             {
-                var (b, w) = CountStones();
-                var winner = b > w ? "Black" : (w > b ? "White" : "Draw");
-                this.Notify?.Invoke($"Game Over\nBlack: {b} White: {w}\nWinner: {winner}");
+                NotifyGameOverIfNeeded();
             }
 
             return true;
