@@ -207,6 +207,23 @@ namespace reversi_cs
         }
 
         /**
+         * テスト用途で任意局面を設定する。
+         * 
+         * - bitBoard と Board を同期してから描画イベントを発火する。
+         * - production では通常 InitializeGame()/TryPlaceAt() 経由で局面が進む。
+         * 
+         * @param bb 設定する局面
+         * @param currentPlayer 手番
+         */
+        internal void SetPositionForTest(BitBoard bb, Stone currentPlayer)
+        {
+            this.bitBoard = bb;
+            this.CurrentPlayer = currentPlayer;
+            this.Board.SetBitBoard(bb);
+            this.DrawBoard(this.Board);
+        }
+
+        /**
          * 指定した色の相手の色を返す。
          * @param s 石の色
          * @return 相手の石の色
