@@ -62,15 +62,19 @@ dotnet run --project ./reversi_cs.csproj
   - 合法手生成（ビットマスク）や反転ビット計算などの高速処理を実装しています。
   - 現状は UI 互換のため `Board` と同期して使い、将来的な最適化のための基盤として導入しています。
 
-### AI
-- `RandomPlayer`
-  - `GameLogic` から合法手一覧を取得し、乱数で 1 手選択します。
-
-### 設定
-- `GameConfig`
-  - 黒・白のプレイヤー種別を保持します。
-- `PlayerType`
-  - プレイヤー種別（`Human` / `Random`）の列挙型です。
+### NN評価関数（探索用の下地）
+- `NNEvaluator`
+  - TypeScript 版の NN 評価関数（`NNEval`）を参考にした C# 実装です。
+  - JSON から重みを読み込み、`BitBoard` の局面を実数スコアに評価します（手番視点）。
+  - 現時点では探索AIへの組み込みは行っておらず、評価関数クラスのみ追加しています。
+  - モデルファイル（重みJSON）の配置について:
+    - 本リポジトリにはモデルJSONは同梱しません（別途用意）。
+    - 実行時にローカルファイルパスを指定して読み込みます。
+    - 例: `var eval = NNEvaluator.LoadFromFile(@"C:\path\to\model.json");`
+      - 相対パスを使う場合は「実行時のカレントディレクトリ」基準になります（`dotnet run` では通常プロジェクトディレクトリ）。
+  - 使い方例:
+    - `var eval = NNEvaluator.LoadFromFile("path/to/model.json");`
+    - `double score = eval.Evaluate(board.GetBitBoard(), sideToMove, perspectiveColor);`
 
 ## ファイル構成
 - `Program.cs`: エントリーポイント（`Form1` を起動）
@@ -82,6 +86,8 @@ dotnet run --project ./reversi_cs.csproj
 - `GameConfig.cs`: ゲーム設定
 - `PlayerType.cs`: プレイヤー種別
 - `BitBoard.cs`: ビットボード表現と合法手生成など（高速化の下地）
+- `NNEvalModel.cs`: NN評価関数モデル（JSON読み込み用DTO）
+- `NNEvaluator.cs`: NN評価関数（前向き計算）
 
 ## 開発補助ツール
 このプロジェクトの作成・修正には `GitHub Copilot` を使用しています。
