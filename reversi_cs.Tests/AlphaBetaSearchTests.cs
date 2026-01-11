@@ -45,6 +45,37 @@ namespace reversi_cs.Tests
                 search.FindBestMove(BitBoard.Initial, Stone.BLACK, depth: 6, cancellationToken: cts.Token));
         }
 
+        [Fact]
+        public void FindBestMoveIterative_ShouldReturnALegalMove_WhenMovesExist()
+        {
+            var eval = new reversi_cs.NNEvaluator(CreateSumModel(inputSize: 64 * 5));
+            var tt = new reversi_cs.TranspositionTable(1 << 12);
+            var search = new reversi_cs.AlphaBetaSearch(eval, tt);
+
+            var pos = BitBoard.Initial;
+            var move = search.FindBestMoveIterative(pos, Stone.BLACK, maxDepth: 3);
+
+            Assert.NotNull(move);
+            Assert.True(pos.IsLegalMove(Stone.BLACK, move!.Value.x, move.Value.y));
+        }
+
+        [Fact]
+        public void FindBestMoveIterative_WhenCancelled_ShouldNotThrow()
+        {
+            var eval = new reversi_cs.NNEvaluator(CreateSumModel(inputSize: 64 * 5));
+            var tt = new reversi_cs.TranspositionTable(1 << 12);
+            var search = new reversi_cs.AlphaBetaSearch(eval, tt);
+
+            var pos = BitBoard.Initial;
+
+            var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            // キャンセル済みでも例外ではなく（未確定なら）nullを返せること
+            var move = search.FindBestMoveIterative(pos, Stone.BLACK, maxDepth: 6, cancellationToken: cts.Token);
+            Assert.Null(move);
+        }
+
         private static reversi_cs.NNEvalModel CreateSumModel(int inputSize)
         {
             var W = new List<List<List<List<double>>>>(65);

@@ -81,6 +81,12 @@ dotnet run --project ./reversi_cs.csproj
 - `AlphaBetaSearch`
   - Negamax 形式のアルファベータ探索です。
   - 終局時（両者合法手なし）は石差を大きな値で返し、勝敗を優先します。
+  - 置換テーブル（`TranspositionTable`）に対応しており、同一局面の探索結果を再利用して高速化します。
+  - 反復深化探索（`FindBestMoveIterative`）に対応しており、深さ 1..N を順に探索して得られたPV手を次の探索のムーブオーダリングに利用します。
+- `TranspositionTable`
+  - 局面（`BitBoard`）+ 手番 + 深さをキーに、評価値と境界種別（Exact/Lower/Upper）を保存します。
+  - 最善手（PV手）も保存し、ムーブオーダリング（先に読む手の並び替え）に利用します。
+  - 結果は深い探索を優先して上書きします。
 - `ModelPathResolver`
   - NNモデルの固定パス解決を行います。
   - 既定のモデルファイル名は `model.json` です。
@@ -104,7 +110,8 @@ dotnet run --project ./reversi_cs.csproj
 - `BitBoard.cs`: ビットボード表現と合法手生成など（高速化の下地）
 - `NNEvalModel.cs`: NN評価関数モデル（JSON読み込み用DTO）
 - `NNEvaluator.cs`: NN評価関数（前向き計算）
-- `AlphaBetaSearch.cs`: アルファベータ探索（Negamax）
+- `AlphaBetaSearch.cs`: アルファベータ探索（Negamax/反復深化）
+- `TranspositionTable.cs`: 置換テーブル（探索の高速化/ムーブオーダリング）
 - `AlphaBetaPlayer.cs`: 探索プレイヤー（将来の拡張用ラッパ）
 - `ModelPathResolver.cs`: モデルファイルの固定パス解決
 

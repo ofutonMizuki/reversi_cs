@@ -30,6 +30,7 @@ namespace reversi_cs
 
         private readonly int alphaBetaDepth;
         private readonly AlphaBetaSearchAsync? alphaBetaSearch;
+        private readonly TranspositionTable? alphaBetaTt;
         private CancellationTokenSource? aiCts;
         private Task? aiTask;
 
@@ -74,7 +75,8 @@ namespace reversi_cs
             {
                 var modelPath = ModelPathResolver.Resolve();
                 var eval = NNEvaluator.LoadFromFile(modelPath);
-                this.alphaBetaSearch = new AlphaBetaSearchAsync(new AlphaBetaSearch(eval));
+                this.alphaBetaTt = TranspositionTable.CreateDefault();
+                this.alphaBetaSearch = new AlphaBetaSearchAsync(new AlphaBetaSearch(eval, this.alphaBetaTt));
             }
 
             this.Activate();
@@ -182,7 +184,7 @@ namespace reversi_cs
             var pos = game.GetBoard().GetBitBoard();
 
             // Run search off the UI thread.
-            aiTask = alphaBetaSearch!.FindBestMoveAsync(pos, sideToMove, alphaBetaDepth, token);
+            aiTask = alphaBetaSearch!.FindBestMoveIterativeAsync(pos, sideToMove, alphaBetaDepth, token);
 
             aiTask.ContinueWith(t =>
             {
