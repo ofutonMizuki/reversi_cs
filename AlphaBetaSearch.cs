@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 
 namespace reversi_cs
 {
@@ -23,9 +24,11 @@ namespace reversi_cs
          * @param pos 局面
          * @param sideToMove 手番
          * @param depth 探索深さ（ply）
+         * @param cancellationToken 途中中断用
+         * @param deadlineUtc 探索の締切（UTC）。未指定なら無制限
          * @return 最善手。合法手が無ければ null（パス）
          */
-        public (int x, int y)? FindBestMove(BitBoard pos, Stone sideToMove, int depth)
+        public (int x, int y)? FindBestMove(BitBoard pos, Stone sideToMove, int depth, CancellationToken cancellationToken = default, DateTime? deadlineUtc = null)
         {
             if (depth < 0) throw new ArgumentOutOfRangeException(nameof(depth));
 
@@ -37,8 +40,10 @@ namespace reversi_cs
 
             foreach (var (x, y) in pos.EnumerateLegalMoves(sideToMove))
             {
+                ThrowIfCancelled(cancellationToken, deadlineUtc);
+
                 var next = pos.ApplyMove(sideToMove, x, y);
-                double score = -Negamax(next, Opponent(sideToMove), depth - 1, double.NegativeInfinity, double.PositiveInfinity);
+                double score = -Negamax(next, Opponent(sideToMove), depth - 1, double.NegativeInfinity, double.PositiveInfinity, cancellationToken, deadlineUtc);
 
                 if (score > best)
                 {
@@ -50,8 +55,10 @@ namespace reversi_cs
             return bestMove;
         }
 
-        private double Negamax(BitBoard pos, Stone sideToMove, int depth, double alpha, double beta)
+        private double Negamax(BitBoard pos, Stone sideToMove, int depth, double alpha, double beta, CancellationToken cancellationToken, DateTime? deadlineUtc)
         {
+            ThrowIfCancelled(cancellationToken, deadlineUtc);
+
             if (depth == 0 || pos.IsTerminal())
                 return EvaluateTerminalAware(pos, sideToMove);
 
@@ -60,16 +67,17 @@ namespace reversi_cs
             // Pass
             if (movesMask == 0)
             {
-                // If opponent also has no moves -> terminal (already handled above)
-                return -Negamax(pos, Opponent(sideToMove), depth - 1, -beta, -alpha);
+                return -Negamax(pos, Opponent(sideToMove), depth - 1, -beta, -alpha, cancellationToken, deadlineUtc);
             }
 
             double best = double.NegativeInfinity;
 
             foreach (var (x, y) in pos.EnumerateLegalMoves(sideToMove))
             {
+                ThrowIfCancelled(cancellationToken, deadlineUtc);
+
                 var next = pos.ApplyMove(sideToMove, x, y);
-                double score = -Negamax(next, Opponent(sideToMove), depth - 1, -beta, -alpha);
+                double score = -Negamax(next, Opponent(sideToMove), depth - 1, -beta, -alpha, cancellationToken, deadlineUtc);
 
                 if (score > best) best = score;
                 if (score > alpha) alpha = score;
@@ -92,6 +100,13 @@ namespace reversi_cs
             // NN のスコアスケールが不明なので、石差を大きめの値で返す。
             // これにより終局近辺で勝ちを優先しやすくする。
             return signed * 1000.0;
+        }
+
+        private static void ThrowIfCancelled(CancellationToken token, DateTime? deadlineUtc)
+        {
+            token.ThrowIfCancellationRequested();
+            if (deadlineUtc.HasValue && DateTime.UtcNow >= deadlineUtc.Value)
+                throw new OperationCanceledException("Search timed out", token);
         }
 
         private static Stone Opponent(Stone s) => s == Stone.BLACK ? Stone.WHITE : Stone.BLACK;

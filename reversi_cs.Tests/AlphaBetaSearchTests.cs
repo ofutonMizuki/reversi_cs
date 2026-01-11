@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Threading;
 using Xunit;
 
 namespace reversi_cs.Tests
@@ -28,6 +30,19 @@ namespace reversi_cs.Tests
             var pos = new BitBoard(~0UL, 0UL);
             var move = search.FindBestMove(pos, Stone.WHITE, depth: 3);
             Assert.Null(move);
+        }
+
+        [Fact]
+        public void FindBestMove_WhenCancelled_ShouldThrow()
+        {
+            var eval = new reversi_cs.NNEvaluator(CreateSumModel(inputSize: 64 * 5));
+            var search = new reversi_cs.AlphaBetaSearch(eval);
+
+            var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            Assert.Throws<OperationCanceledException>(() =>
+                search.FindBestMove(BitBoard.Initial, Stone.BLACK, depth: 6, cancellationToken: cts.Token));
         }
 
         private static reversi_cs.NNEvalModel CreateSumModel(int inputSize)

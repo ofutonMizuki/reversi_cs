@@ -4,6 +4,8 @@ using System.Text;
 using System.Windows.Forms;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace reversi_cs
 {
@@ -24,11 +26,12 @@ namespace reversi_cs
 
         private readonly RandomPlayer blackRandom = new RandomPlayer(Stone.BLACK);
         private readonly RandomPlayer whiteRandom = new RandomPlayer(Stone.WHITE);
+        private readonly System.Windows.Forms.Timer aiTimer = new System.Windows.Forms.Timer();
 
         private readonly int alphaBetaDepth;
-        private readonly AlphaBetaSearch? alphaBetaSearch;
-
-        private readonly System.Windows.Forms.Timer aiTimer = new System.Windows.Forms.Timer();
+        private readonly AlphaBetaSearchAsync? alphaBetaSearch;
+        private CancellationTokenSource? aiCts;
+        private Task? aiTask;
 
         /**
          * コンストラクタ。フォームの初期化とイベント登録を行う。
@@ -71,7 +74,7 @@ namespace reversi_cs
             {
                 var modelPath = ModelPathResolver.Resolve();
                 var eval = NNEvaluator.LoadFromFile(modelPath);
-                this.alphaBetaSearch = new AlphaBetaSearch(eval);
+                this.alphaBetaSearch = new AlphaBetaSearchAsync(new AlphaBetaSearch(eval));
             }
 
             this.Activate();
@@ -89,6 +92,7 @@ namespace reversi_cs
          */
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
+            CancelAITask();
             base.OnFormClosed(e);
             this.Owner?.Enabled = true;
             this.Owner?.Activate();
@@ -123,28 +127,33 @@ namespace reversi_cs
             if (game.IsGameOver())
             {
                 aiTimer.Stop();
+                CancelAITask();
                 return;
             }
 
-            if (IsHumanTurn()) return;
+            if (IsHumanTurn())
+            {
+                CancelAITask();
+                return;
+            }
+
+            if (aiTask is { IsCompleted: false })
+                return; // already thinking
 
             var current = game.GetCurrentPlayer();
             var currentType = current == Stone.BLACK ? config.Black : config.White;
 
-            (int x, int y)? move;
-
             if (currentType == PlayerType.AlphaBetaNN)
             {
                 if (alphaBetaSearch is null) return;
-                var pos = game.GetBoard().GetBitBoard();
-                move = alphaBetaSearch.FindBestMove(pos, current, alphaBetaDepth);
-            }
-            else
-            {
-                RandomPlayer ai = current == Stone.BLACK ? blackRandom : whiteRandom;
-                move = ai.ChooseMove(game);
+
+                StartAlphaBetaAsync(current);
+                return;
             }
 
+            // Random
+            RandomPlayer ai = current == Stone.BLACK ? blackRandom : whiteRandom;
+            var move = ai.ChooseMove(game);
             if (move is null)
             {
                 _ = game.TryPlaceAt(-1, -1);
@@ -153,7 +162,6 @@ namespace reversi_cs
 
             _ = game.TryPlaceAt(move.Value.x, move.Value.y);
 
-            // Continue while AI still has the turn (e.g., opponent pass).
             if (game.IsGameOver())
             {
                 aiTimer.Stop();
@@ -162,6 +170,56 @@ namespace reversi_cs
 
             if (!IsHumanTurn() && !aiTimer.Enabled)
                 aiTimer.Start();
+        }
+
+        private void StartAlphaBetaAsync(Stone sideToMove)
+        {
+            CancelAITask();
+
+            aiCts = new CancellationTokenSource();
+            var token = aiCts.Token;
+
+            var pos = game.GetBoard().GetBitBoard();
+
+            // Run search off the UI thread.
+            aiTask = alphaBetaSearch!.FindBestMoveAsync(pos, sideToMove, alphaBetaDepth, token);
+
+            aiTask.ContinueWith(t =>
+            {
+                if (t.IsCanceled || token.IsCancellationRequested) return;
+                if (t.IsFaulted) return;
+
+                var move = ((Task<(int x, int y)?>)t).Result;
+
+                // Marshal back to UI thread.
+                if (!this.IsHandleCreated) return;
+                this.BeginInvoke(new Action(() =>
+                {
+                    if (game.IsGameOver()) return;
+                    if (IsHumanTurn()) return;
+                    if (game.GetCurrentPlayer() != sideToMove) return;
+
+                    if (move is null)
+                    {
+                        _ = game.TryPlaceAt(-1, -1);
+                    }
+                    else
+                    {
+                        _ = game.TryPlaceAt(move.Value.x, move.Value.y);
+                    }
+
+                    if (!IsHumanTurn() && !aiTimer.Enabled)
+                        aiTimer.Start();
+                }));
+            }, CancellationToken.None);
+        }
+
+        private void CancelAITask()
+        {
+            try { aiCts?.Cancel(); } catch { }
+            try { aiCts?.Dispose(); } catch { }
+            aiCts = null;
+            aiTask = null;
         }
 
         /**
