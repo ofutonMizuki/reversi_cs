@@ -236,6 +236,52 @@ namespace reversi_cs
 
             return Merge(self, opp, player);
         }
+
+        /**
+         * 指定プレイヤーの合法手を (x,y) の列挙として返す。
+         */
+        public System.Collections.Generic.IEnumerable<(int x, int y)> EnumerateLegalMoves(Stone player)
+        {
+            ulong mask = GetLegalMovesMask(player);
+            while (mask != 0)
+            {
+                ulong lsb = mask & (ulong)-(long)mask;
+                int idx = TrailingZeroCount(lsb);
+                yield return (idx & 7, idx >> 3);
+                mask ^= lsb;
+            }
+        }
+
+        /**
+         * 両者とも合法手が無い場合に終局とみなす。
+         */
+        public bool IsTerminal()
+        {
+            return GetLegalMovesMask(Stone.BLACK) == 0 && GetLegalMovesMask(Stone.WHITE) == 0;
+        }
+
+        /**
+         * 石数差（black - white）を返す。
+         */
+        public int StoneDiff()
+        {
+            return PopCountBlack() - PopCountWhite();
+        }
+
+        private static int TrailingZeroCount(ulong bit)
+        {
+#if NET7_0_OR_GREATER
+            return System.Numerics.BitOperations.TrailingZeroCount(bit);
+#else
+            int idx = 0;
+            while ((bit & 1UL) == 0)
+            {
+                bit >>= 1;
+                idx++;
+            }
+            return idx;
+#endif
+        }
     }
 
     /**

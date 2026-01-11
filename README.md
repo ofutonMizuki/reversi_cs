@@ -31,6 +31,7 @@ dotnet run --project ./reversi_cs.csproj
 ## プレイヤー種別
 - `Human`: クリック操作で手を選択します。
 - `Random`: 合法手の中からランダムに 1 手選びます（簡易 AI）。
+- `AlphaBetaNN`: NN評価関数 + アルファベータ法で探索して 1 手選びます。
 
 ## 実装の概要
 
@@ -76,6 +77,21 @@ dotnet run --project ./reversi_cs.csproj
     - `var eval = NNEvaluator.LoadFromFile("path/to/model.json");`
     - `double score = eval.Evaluate(board.GetBitBoard(), sideToMove, perspectiveColor);`
 
+### 探索（アルファベータ法）
+- `AlphaBetaSearch`
+  - Negamax 形式のアルファベータ探索です。
+  - 終局時（両者合法手なし）は石差を大きな値で返し、勝敗を優先します。
+- `ModelPathResolver`
+  - NNモデルの固定パス解決を行います。
+  - 既定のモデルファイル名は `model.json` です。
+  - 探索AI（`AlphaBetaNN`）は以下のいずれかにモデルがある前提で読み込みます。
+    - 実行ファイルと同じディレクトリ: `./model.json`
+    - 1階層下の `models` ディレクトリ: `./models/model.json`
+
+## 設定画面
+- 黒/白のプレイヤー種別で `AlphaBetaNN` を選択できます。
+- `AlphaBeta Depth` で探索深さ（ply）を設定できます。
+
 ## ファイル構成
 - `Program.cs`: エントリーポイント（`Form1` を起動）
 - `Form1.cs`: 設定画面（プレイヤー種別の選択）
@@ -88,6 +104,9 @@ dotnet run --project ./reversi_cs.csproj
 - `BitBoard.cs`: ビットボード表現と合法手生成など（高速化の下地）
 - `NNEvalModel.cs`: NN評価関数モデル（JSON読み込み用DTO）
 - `NNEvaluator.cs`: NN評価関数（前向き計算）
+- `AlphaBetaSearch.cs`: アルファベータ探索（Negamax）
+- `AlphaBetaPlayer.cs`: 探索プレイヤー（将来の拡張用ラッパ）
+- `ModelPathResolver.cs`: モデルファイルの固定パス解決
 
 ## 開発補助ツール
 このプロジェクトの作成・修正には `GitHub Copilot` を使用しています。

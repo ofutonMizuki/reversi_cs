@@ -24,6 +24,10 @@ namespace reversi_cs
 
         private readonly RandomPlayer blackRandom = new RandomPlayer(Stone.BLACK);
         private readonly RandomPlayer whiteRandom = new RandomPlayer(Stone.WHITE);
+
+        private readonly int alphaBetaDepth;
+        private readonly AlphaBetaSearch? alphaBetaSearch;
+
         private readonly System.Windows.Forms.Timer aiTimer = new System.Windows.Forms.Timer();
 
         /**
@@ -32,6 +36,7 @@ namespace reversi_cs
         public GameForm(GameConfig? config = null)
         {
             this.config = config ?? new GameConfig();
+            this.alphaBetaDepth = Math.Max(1, this.config.AlphaBetaDepth);
 
             this.Text = "Game";
             this.ClientSize = new Size(640, 640);
@@ -60,6 +65,14 @@ namespace reversi_cs
             // If black is AI, start immediately.
             if (!IsHumanTurn())
                 aiTimer.Start();
+
+            // AlphaBetaNN: load model once
+            if (this.config.Black == PlayerType.AlphaBetaNN || this.config.White == PlayerType.AlphaBetaNN)
+            {
+                var modelPath = ModelPathResolver.Resolve();
+                var eval = NNEvaluator.LoadFromFile(modelPath);
+                this.alphaBetaSearch = new AlphaBetaSearch(eval);
+            }
 
             this.Activate();
         }
@@ -116,13 +129,24 @@ namespace reversi_cs
             if (IsHumanTurn()) return;
 
             var current = game.GetCurrentPlayer();
-            RandomPlayer ai = current == Stone.BLACK ? blackRandom : whiteRandom;
+            var currentType = current == Stone.BLACK ? config.Black : config.White;
 
-            var move = ai.ChooseMove(game);
+            (int x, int y)? move;
+
+            if (currentType == PlayerType.AlphaBetaNN)
+            {
+                if (alphaBetaSearch is null) return;
+                var pos = game.GetBoard().GetBitBoard();
+                move = alphaBetaSearch.FindBestMove(pos, current, alphaBetaDepth);
+            }
+            else
+            {
+                RandomPlayer ai = current == Stone.BLACK ? blackRandom : whiteRandom;
+                move = ai.ChooseMove(game);
+            }
+
             if (move is null)
             {
-                // Pass is handled inside TryPlaceAt when a non-legal placement is attempted.
-                // Trigger it by attempting an invalid move.
                 _ = game.TryPlaceAt(-1, -1);
                 return;
             }
